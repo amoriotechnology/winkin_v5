@@ -37,7 +37,6 @@ class Backend extends CI_Controller {
 	    $this->load->vars(['day_report' => $day_report]);
 	}
 
-
 	public function index() {
 		$start = date('Y-m-01');
 		$end = date('Y-m-31');
@@ -145,6 +144,7 @@ class Backend extends CI_Controller {
 					'uname' => $ActiveEmail[0]['fld_uname'],
 					'staff_id' => $ActiveEmail[0]['fld_staffid'],
 					'email_id' => $ActiveEmail[0]['fld_uemail'],
+					'phone_no' => $ActiveEmail[0]['fld_uphone'],
 					'role' => $ActiveEmail[0]['fld_uroles'],
 					'access' => $fld_accessPoints,
 				]);
@@ -667,9 +667,21 @@ class Backend extends CI_Controller {
 
 		} else {
 
+			/* Check already have the slot, date, time */
+			$bookedtime = '';
+			for($b = 0; $b < count($timings); $b++) {
+			  $bookedtime .= "'".$timings[$b]."', ";
+			}
+	  
+			$prev_booking = $this->Common_model->GetJoinDatas('appointments A', 'appointment_meta AM', 'A.fld_aid = AM.fld_amappid', "`fld_adate`", "`fld_amstaff_time` IN ('".trim($bookedtime, ", '")."') AND `fld_adate` = '".$court_date."' AND `fld_aserv` = '".$admincourt."' AND `fld_astatus` != 'Cancelled'");
+			if(!empty($prev_booking)) {
+			  echo json_encode(['status' => 300, 'alert_msg' => 'Sorry, but this slot is already booked!']);
+			  exit;
+			}
+
 			$check = ExistorNot('customers', ['fld_phone' => $custphone]);
 			$cust_rec = $this->Common_model->GetDatas('customers', 'fld_id, fld_custid', ['fld_id !=' => ''], "`fld_id` DESC");
-			$appoint_rec = $this->Common_model->GetDatas('appointments', 'fld_aid, fld_appointid', ['fld_aid !=' => ''], "`fld_aid` DESC");
+			$appoint_rec = $this->Common_model->GetDatas('appointments', 'fld_aid, fld_appointid', ['fld_aid !=' => '', 'fld_atype IS NULL' => NULL], "`fld_aid` DESC");
 
 			$CustID = 'WC1000';
 			if(!empty($cust_rec)) {
@@ -747,25 +759,65 @@ class Backend extends CI_Controller {
 			$cp_cnt = 1;
 			if(!empty($prev_used_cnt)) { $cp_cnt = ((int)$prev_used_cnt[0]['fld_cpused'] + 1); }
 			$this->Common_model->UpdateData('coupons', ['fld_cpused' => $cp_cnt], ['fld_cpid' => $coupon_id]);
-
-			/* ----- Sending Email ----- */
-			$tomail = (!empty($check)) ? $check[0]['fld_email'] : $custemail;
-			$name = (!empty($check)) ? $check[0]['fld_name'] : $custname;
-            $subject = '🎉 Your Booking is Confirmed! Thank You for Booking with Us! 🎉';
-       
-            $bookingtemplates = BookingTemplate(['name' => $name, 'appoint_id' =>  $AppointID, 'court' => $admincourt, 'date' => showDate($court_date), 'time' => $timings, 'amount' => $newrate, 'couponAmount' => $coupon_amount, 'gstAmount' => $gst_amount, 'payCharge' => $payment_amount]);
-            	
-            
-            $getPdf = $this->pdf_generate($AppointID);
-			$mail = SendEmail($tomail, "", "", $subject, $bookingtemplates, $getPdf);
-			$this->Common_model->UpdateData('appointments', ['fld_conf_email' => $mail], ['fld_aid' => $app_lastid]);
 		}
 
-		$response = ($result > 0) ? ['status' => 200, 'alert_msg' => alertMsg('add_suc')] : ['status' => 401, 'alert_msg' => alertMsg('add_fail')];
+		$response = ($result > 0) ? ['status' => 200, 'alert_msg' => alertMsg('add_suc'), 'appoint_id' => $AppointID] : ['status' => 401, 'alert_msg' => alertMsg('add_fail')];
 		echo json_encode($response);
 		exit;
 	}
+	public function update_cust_booking() {
+    
+		$info = checkLogin();
+		// Razorpay Status
+		$appoint_id = $this->input->post('appoint_id', TRUE);
+		$payment_id = $this->input->post('pay_id', TRUE);
+		$order_id = $this->input->post('ord_id', TRUE);
+		$signature = $this->input->post('signature', TRUE);
+		$paydata = $this->input->post('paymentdata', TRUE);
+		
+		$razorstatus = $paydata['status'];
+		$paystatus = 'Paid';
+		$status = "Confirmed";
+		if(!empty($paydata)) {
+			if($razorstatus == "created" || $razorstatus == "authorized" || $razorstatus == "pending") {
+				$paystatus = $status = "Pending";
+			} elseif($razorstatus == "failed" || $razorstatus == "cancelled") {
+				$paystatus = $status = "Cancelled";
+			} elseif($razorstatus == "refunded") {
+				$paystatus = $status = "Refunded";
+			}
+		}
 
+		$result = 0;
+		$app_detail = $this->Common_model->GetJoinDatas('appointments A', 'customers C', 'A.fld_acustid = C.fld_id', '`fld_aid`, `fld_appointid`, `fld_name`, `fld_email`, `fld_phone`, `fld_aserv`, `fld_adate`, `fld_atime`, `fld_arate`, `fld_acpamt`', ['fld_appointid' => $appoint_id]);
+		if(!empty($app_detail)) {
+			$balance = ((float)$app_detail[0]['fld_arate'] - (float)$paydata['amount']);
+			$this->Common_model->UpdateData('appointments', ['fld_astatus' => $status, 'fld_payment_id' => $payment_id, 'fld_order_id' => $order_id, 'fld_signature' => $signature, 'fld_apaystatus' => $paydata['status'], 'fld_abalance' => $balance], ['fld_appointid' => $appoint_id]);
+			$this->Common_model->UpdateData('payments', ['fld_ppaid' => $paydata['amount'], 'fld_pbalance' => $balance, 'fld_pstatus' => $paystatus, 'fld_ppayid' => $payment_id, 'fld_pvpa' => $paydata['vpa'], 'fld_pemail' => $paydata['email'], 'fld_pcont' => $paydata['contact'], 'fld_pcreated_at' => $paydata['created_at'], 'fld_pamt' => $paydata['amount']], ['fld_appid' => $app_detail[0]['fld_aid']]);
+		
+			// Sending Email
+			$tomail = (!empty($app_detail)) ? $app_detail[0]['fld_email'] : $info['email_id'];
+			$name = (!empty($app_detail)) ? $app_detail[0]['fld_name'] : $info['uname'];
+			$subject = '🎉 Your Booking is Confirmed! Thank You for Booking with Us! 🎉';
+			$court = $app_detail[0]['fld_aserv'];
+			$court_date = $app_detail[0]['fld_adate'];
+			$timings = json_decode($app_detail[0]['fld_atime']);
+			$newrate = $app_detail[0]['fld_arate'];
+			$coupon_amount = $app_detail[0]['fld_acpamt'];
+			$gst_amount = 0;
+			$payment_amount = $app_detail[0]['fld_arate'];
+		
+			$bookingtemplates = BookingTemplate(['name' => $name, 'appoint_id' =>  $appoint_id, 'court' => $court, 'date' => showDate($court_date), 'time' => $timings, 'amount' => $newrate, 'couponAmount' => $coupon_amount, 'gstAmount' => $gst_amount, 'payCharge' => $payment_amount]);
+		
+			$Pdf = $this->pdf_generate($appoint_id);
+			$mail = SendEmail($tomail, "", "", $subject, $bookingtemplates, $Pdf);
+			$result = $this->Common_model->UpdateData('appointments', ['fld_conf_email' => $mail], ['fld_appointid' => $appoint_id]);	
+		}
+
+		$response = (!empty($result)) ? ['status' => 200, 'alert_msg' => alertMsg('add_suc')] : ['status' => 401, 'alert_msg' => alertMsg('add_fail')];
+		echo json_encode($response);
+		exit;
+	  }
 
 	public function pdf_generate($AppointID = NULL) {
 		$table1 = 'appointments A';
@@ -943,9 +995,21 @@ class Backend extends CI_Controller {
 
     /* ----- For get booked time of the selected date ----- */
     $appoint_times = $this->Common_model->GetJoinDatas("appointments A", "appointment_meta AM", "`A`.`fld_aid`=`AM`.`fld_amappid`", "`fld_appointid`, `fld_adate`, `fld_amserv_name`, `fld_amstaff_time`, `fld_aduring`, `fld_amserv_dura`, `fld_atype`", "`fld_amserv_name` IN ('".$court."') AND `fld_adate` = '".$date."' AND `fld_astatus` != 'Cancelled'" );
+	$blockdata = [];
+    $prev_id = '';
+    foreach($appoint_times as $key => $val) { 
+      
+      if($val['fld_amserv_name'] != $prev_id) { 
+        $dura = 0; 
+        $dura += ((int)$val['fld_amserv_dura'] - 1);
+      }
+      $times = date('h:i A', strtotime($val['fld_amstaff_time']));
+      $type = (($val['fld_atype'] == "Maintenance") ? "Maintenance" : $val['fld_appointid']);
+      $blockdata[$val['fld_amserv_name']][$times] = [ 'appid' => $type, 'astart' => date('H:i', strtotime($val['fld_amstaff_time'])), 'aend' => date('H:i', strtotime($val['fld_amstaff_time'].' +'.$dura.' minutes'))];
+      $prev_id = $val['fld_amserv_name'];
+    }
 
     $book_time = $this->Common_model->GetJoinDatas("appointments A", "appointment_meta AM", "`A`.`fld_aid`=`AM`.`fld_amappid`", "`fld_adate`, `fld_amserv_name`, `fld_amstaff_time`, `fld_aduring`, `fld_amserv_dura`", "`fld_amserv_name` IN ('".$court."') AND `fld_adate` = '".$date."' AND `fld_aid` = '".$appkey."' AND `fld_astatus` != 'Cancelled'" );
-
     $booked_time = [];
     $selected_time = [];
     if(!empty($book_time)) {
@@ -954,22 +1018,6 @@ class Backend extends CI_Controller {
         $booked_time[$court][date("h:i A", strtotime($value['fld_amstaff_time']))] = date("H:i", strtotime($value['fld_amstaff_time']));
         $selected_time[$court] = ['start' => date('H:i', strtotime($value['fld_amstaff_time'])), 'end' => date('H:i', strtotime($value['fld_amstaff_time'].' +'.$value['fld_aduring'].' minutes')) ];
       }
-    }
-
-    $blockdata = [];
-    $prev_id = '';
-    foreach($appoint_times as $key => $val) { 
-      
-      if($val['fld_amserv_name'] != $prev_id) { 
-        $dura = 0; 
-        $dura += (int)$val['fld_amserv_dura'];
-      }
-
-      $times = date('h:i A', strtotime($val['fld_amstaff_time']));
-      $type = (($val['fld_atype'] == "Maintenance") ? "Maintenance" : $val['fld_appointid']);
-      $blockdata[$val['fld_amserv_name']][$times] = [ 'appid' => $type, 'astart' => date('H:i', strtotime($val['fld_amstaff_time'])), 'aend' => date('H:i', strtotime($val['fld_amstaff_time'].' +'.$dura.' minutes'))];
-
-      $prev_id = $val['fld_amserv_name'];
     }
 
 
@@ -1033,25 +1081,34 @@ class Backend extends CI_Controller {
                           <table class="table">';
               if (($atte_data[0]['fld_sadate'] != $date) && in_array($week_day, json_decode($gethour[0]['fld_weekdays']), TRUE)) {
                  while ($st_time <= $end_time) {
+
                     if ($rows == 0) { $response .= '<tr>'; }
                     $looptime = date('H:i', $st_time);
                     $classtime = date('Hi', $st_time);
+
                     $prev = strtotime('-30 minutes', $st_time);
                     $prev_class = date('Hi', $prev);
+
                     $next = strtotime('+30 minutes', $st_time);
                     $next_class = date('Hi', $next);
+
                     $time_stru = date('h:i A', $st_time);
                     $prevtime = isset($booked_time[$court][$time_stru]) ? $booked_time[$court][$time_stru] : "";
+
                     $blockid = isset($blockdata[$court][$time_stru]) ? $blockdata[$court][$time_stru]['appid'] : "";
                     $blockstart = isset($blockdata[$court][$time_stru]) ? $blockdata[$court][$time_stru]['astart'] : "";
                     $blockend = isset($blockdata[$court][$time_stru]) ? $blockdata[$court][$time_stru]['aend'] : "";
-                    $apptime = !empty($blockstart) ? date("H:i", strtotime($blockstart)) : $prevtime;
+                    
+					$apptime = !empty($blockstart) ? date("H:i", strtotime($blockstart)) : $prevtime;
                     $select_time_start = (isset($selected_time[$court]) ? $selected_time[$court]['start'] : "");
                     $select_time_end = (isset($selected_time[$court]) ? $selected_time[$court]['end'] : "");
-                    $isDisabled = ($cur_date == $date && $cur_time > $st_time) || ($looptime >= $blockstart && $looptime <= $blockend);
+                    
+					$isDisabled = (($cur_date == $date && $cur_time > $st_time) || ($looptime >= $blockstart && $looptime <= $blockend));
+					
                     $resch_bool = (!empty($select_time_start) && ($select_time_start <= $looptime && $select_time_end >= $looptime));
                     $isChecked = ($apptime == $looptime) || ($prevtime == $looptime);
                     $bgColor = ($blockid == "Maintenance") ? 'bg-orange' : '';
+
                     $response .= '<td class="text-center '.($isDisabled ? 'cal-disabled' : '').' '.($isChecked ? 'btn-success' : 'btn-outline-success').' time-btn'.$k.' '.$classtime.' '.$bgColor.'" style="cursor: pointer;" data-time="'.$prev_class.'" onclick="getTimeRate(\''.showTime($looptime).'\', 30)"  data-next="'.$next_class.'">
                         <label class="text-dark '.($isDisabled ? 'cal-disabled' : '').'">
                           <div class="align-items-center text-dark">

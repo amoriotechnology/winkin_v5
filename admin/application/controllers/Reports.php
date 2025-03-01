@@ -735,6 +735,7 @@ class Reports extends CI_Controller {
 
         $searchColumns = $this->input->post('search_columns', TRUE); 
 
+		$col_where = [];
 	    if (!empty($searchColumns)) {
 		    foreach ($searchColumns as $columnIndex => $searchValue) {
 		        if (!empty($searchValue)) {
@@ -760,9 +761,7 @@ class Reports extends CI_Controller {
 		}
 
         $searchdata = ['fld_appointid' => $search, 'fld_aserv' => $search, 'fld_adate' => $search, 'fld_booked_date' => $search, 'fld_atime' => $search];
-
         $totalItems     = $this->Common_model->getCount('appointments', ["fld_atype" => 'Maintenance'], $searchdata, '`fld_aid`', $col_where);
-
         $items          = $this->Common_model->PaginationData('appointments', "*", ["fld_atype" => 'Maintenance'], "`$orderField` $orderDirection", 10, $start, $searchdata, $col_where);
 
         $data           = [];

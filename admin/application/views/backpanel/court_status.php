@@ -579,86 +579,116 @@ $(document).ready(function() {
 
     });
 
-
     /* ------------------------ Model ajax for add / edit staff ---------------------- */
-     $("#appointment_form").submit(function(event) {
+    $("#appointment_form").submit(function(event) {
         event.preventDefault();
-
         var amt = restrictAmt($('#amt').val());
-        var paymode = $('#paymode').val();
         if(amt === false) { return amt; }
-        console.log(amt, paymode);
 
         var paymentType = $('select[name="pay_mode"]').val();
         var submitButton = $('button[type="submit"]');
-        submitButton.prop('disabled', true).text('Loading...');
+        // submitButton.prop('disabled', true).text('Loading...');
+        var paymode = $('#paymode').val();
 
         if(paymode == "Online") {
-             $.ajax({
-                url: '<?= base_url('payment_create'); ?>',
-                type: 'POST',
-                data:{[csrfName]:csrfHash, amount:$("#total_Amount").text(), gst:$("#gst_amount").val(), pay_charge: $("#payment_amount").val()},
+            var appoint_status = false;
+            var newapp_id = "";
+            $.ajax({
+                url: '<?= base_url('add_booking') ?>',
+                type: 'post',
+                data : $(this).serialize(),
                 dataType: 'json',
-                success : function (res) {
-                    var responseData = (typeof res.data === "string") ? JSON.parse(res.data) : res.data;
-                    submitButton.prop('disabled', false).text('Pay Now');
-                        var options = {
-                            "key": responseData.api_key, 
-                            "amount": responseData.amount, 
-                            "currency": "INR",
-                            "order_id": responseData.order_id, 
-                            "handler": function (response) {
-                                $.ajax({
-                                    url: '<?= base_url('razorpaysuccess') ?>', 
-                                    method: 'POST',
-                                    data: {
-                                        [csrfName]:csrfHash,
-                                        razorpay_payment_id: response.razorpay_payment_id,
-                                        razorpay_order_id: response.razorpay_order_id,
-                                        razorpay_signature: response.razorpay_signature,
-                                        payment_status: response.payment_status
-                                    },
-                                    dataType: 'json',
-                                    success: function (data) {
+                success:function(result) {
+                    if(result.status == 200) {
+                        submitButton.prop('disabled', false).text('Pay Now');
+                        newapp_id = result.appoint_id;
+                        var courtname = $("input[name='admincourt']:checked").val();
+                        var courtdate = $("#court_date").val();
+                        var courttime = "";
+                        $("input[name='times[]']:checked").each(function() {
+                            courttime += $(this).val()+" - ";
+                        });
+                        var customer_phone = $("#cust_phone").val();
+                        var cust_name = $("#cust_name").val();
+                        var cust_email = $("#cust_email").val();
+                        if (!customer_phone) {
+                            cust_name = "<?= (!empty($this->session->userdata('login_info')['uname'])) ? $this->session->userdata('login_info')['uname'] : ''; ?>";
+                            cust_email = "<?= (!empty($this->session->userdata('login_info')['email_id'])) ? $this->session->userdata('login_info')['email_id'] : ''; ?>";
+                            customer_phone = "<?= (!empty($this->session->userdata('login_info')['phone_no'])) ? $this->session->userdata('login_info')['phone_no'] : ''; ?>";
+                        }
 
-                                        if (data.status === 'Payment Successfull') {
-                                            var formData = $("#appointment_form").serializeArray();
-                                            formData.push({ name: 'pay_id', value: data.payment_id });
-                                            formData.push({ name: 'ord_id', value: data.order_id });
-                                            formData.push({ name: 'signature', value: data.signature });
-                                            formData.push({ name: 'pay_mode', value: data.pay_mode });
-                                            formData.push({ name: csrfName, value: csrfHash });
-                                            submitButton.prop('disabled', true).text('Loading...');
+                        $.ajax({
+                            url: '<?= base_url('payment_create'); ?>',
+                            type: 'POST',
+                            data:{[csrfName]:csrfHash, amount:$("#total_Amount").text(), gst:$("#gst_amount").val(), pay_charge: $("#payment_amount").val(), customer_phone: customer_phone},
+                            dataType: 'json',
+                            success : function (res) {
+                                var responseData = (typeof res.data === "string") ? JSON.parse(res.data) : res.data;
+                                submitButton.prop('disabled', false).text('Pay Now');
+                                    var options = {
+                                        "key": responseData.api_key, 
+                                        "amount": responseData.amount, 
+                                        "currency": "INR",
+                                        "order_id": responseData.order_id, 
+                                        "handler": function (response) {
                                             $.ajax({
-                                                url: '<?= base_url('add_booking') ?>',
-                                                type: 'post',
-                                                data : formData,
+                                                url: '<?= base_url('razorpaysuccess') ?>', 
+                                                method: 'POST',
+                                                data: {
+                                                    [csrfName]:csrfHash,
+                                                    razorpay_payment_id: response.razorpay_payment_id,
+                                                    razorpay_order_id: response.razorpay_order_id,
+                                                    razorpay_signature: response.razorpay_signature,
+                                                    payment_status: response.payment_status,
+
+                                                },
                                                 dataType: 'json',
-                                                success:function(result) {
-                                                    if(result.status == 200) {
-                                                        AlertPopup('Success!', 'Appointment Booked Successfully!', 'success', 'Ok', '');
-                                                        submitButton.prop('disabled', false).text('Pay Now');
+                                                success: function (data) {
+
+                                                    if (data.code > 0) {
+                                                        submitButton.prop('disabled', true).text('Loading...');
+                                                        $.ajax({
+                                                            url: '<?= base_url('update_cust_booking') ?>',
+                                                            type: 'post',
+                                                            data : {[csrfName]:csrfHash, 'appoint_id':newapp_id, 'pay_id':data.payment_id, 'ord_id':data.order_id, 'signature':data.signature, paymentdata:data},
+                                                            dataType: 'json',
+                                                            success:function(res) {
+                                                                if(res.status == 200) {
+                                                                    AlertPopup('Success!', 'Appointment Booked Successfully!', 'success', 'Ok', '');
+                                                                    submitButton.prop('disabled', false).text('Pay Now');
+                                                                } else {
+                                                                    AlertPopup('Error!', 'Appointment Not Booked!!!', 'error', 'Ok', '');
+                                                                }
+                                                            }
+                                                        });
                                                     } else {
-                                                        AlertPopup('Error!', 'Appointment Not Booked!!!', 'error', 'Ok', '');
+                                                        AlertPopup('Failed!', 'Court not booking!!!', 'error', 'Ok', '');
                                                     }
+                                                },
+                                                error: function (err) {
+                                                    AlertPopup('Error!', 'Payment verification failed. Please try again.', 'error', 'Ok', '');
                                                 }
                                             });
-                                        } else {
-                                           AlertPopup('Success!', 'Appointment Booked Successfully!', 'success', 'Ok', '');
+                                        },
+                                        "prefill": {
+                                            "name": cust_name,
+                                            "email": cust_email,
+                                            "court": courtname,
+                                            "slotdate": courtdate,
+                                            "slottime": courttime,
                                         }
-                                    },
-                                    error: function (err) {
-                                        AlertPopup('Error!', 'Payment verification failed. Please try again.', 'error', 'Ok', '');
-                                    }
-                                });
-                            },
-                            "prefill": {
-                                "name": "Customer Name", 
-                                "email": "customer@example.com", 
+                                    };
+                                    var rzp1 = new Razorpay(options);
+                                    rzp1.open();
                             }
-                        };
-                        var rzp1 = new Razorpay(options);
-                        rzp1.open();
+                        });
+
+                    } else if(result.status == 300) {
+                        AlertPopup('Warning!', result.alert_msg, 'warning', 'Ok', '');
+                    } else {
+                        AlertPopup('Error!', 'Appointment Not Booked!!!', 'error', 'Ok', '');
+                        return false;
+                    }
                 }
             });
         } else {
@@ -678,9 +708,7 @@ $(document).ready(function() {
             });
         }
     });
-
     
-    /*applycoupon($('#coupon_amt').val(), $('#old_amount').val());*/
     // Coupon Amount 
     $('#coupon_apply').on('click', function(event) {
         if (event.which===13) event.preventDefault();

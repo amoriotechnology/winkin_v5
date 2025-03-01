@@ -8,6 +8,7 @@ $route['dashboard'] = 'backend';
 $route['calendar'] = 'backend/calendar';
 $route['today_booking'] = 'backend/today_booking';
 $route['add_booking'] = 'backend/add_booking';
+$route['update_cust_booking'] = 'backend/update_cust_booking';
 $route['add_customer'] = 'backend/add_customer';
 $route['add_category'] = 'backend/add_category';
 $route['add_service'] = 'backend/add_service';

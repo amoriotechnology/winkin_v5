@@ -404,7 +404,6 @@ class Frontend extends CI_Controller {
   public function add_cust_booking() {
 
     $info = checkCustLogin();
-
     $appid = $this->input->post('app_id', TRUE);
     
     /* customer detail */
@@ -414,7 +413,7 @@ class Frontend extends CI_Controller {
     $altcustphone   = trim($this->input->post('alt_cust_phone', TRUE));
     $custemail  = trim($this->input->post('cust_email', TRUE));
     $custpwd    = $this->encryption->encrypt(trim($this->input->post('cust_pwd', TRUE)));
-    $custdob  = trim($this->input->post('cust_dob', TRUE));
+    $custdob    = trim($this->input->post('cust_dob', TRUE));
     $custgender = trim($this->input->post('cust_gender', TRUE));
     $mari_sts   = trim($this->input->post('mari_sts', TRUE));
     $anni_date  = trim($this->input->post('anni_date', TRUE));
@@ -440,11 +439,6 @@ class Frontend extends CI_Controller {
 
     $gst_amount = $this->input->post('gst_amount', TRUE);
     $payment_amount = $this->input->post('payment_amount', TRUE);
-
-    // Razorpay Status
-    $payment_id = $this->input->post('pay_id', TRUE);
-    $order_id = $this->input->post('ord_id', TRUE);
-    $signature = $this->input->post('signature', TRUE);
 
     /* payment detail*/
     $paymode  = 'Online';//$this->input->post('pay_mode', TRUE);
@@ -512,9 +506,6 @@ class Frontend extends CI_Controller {
           'fld_acpamt' => $coupon_amount,
           'fld_gst_amt' => $gst_amount,
           'fld_pay_charge' => $payment_amount,
-          'fld_payment_id ' => $payment_id,
-          'fld_order_id ' => $order_id,
-          'fld_signature ' => $signature,
         ];
       $this->Common_model->UpdateData('appointments', $updatedata, ['fld_aid' => $appid]);
       $this->Common_model->DeleteData('appointment_meta', ['fld_amappid' => $appid]);
@@ -523,11 +514,24 @@ class Frontend extends CI_Controller {
 
     } else {
       
+      /* Check already have the slot, date, time */
+      $bookedtime = '';
+      for($b = 0; $b < count($timings); $b++) {
+        $bookedtime .= "'".$timings[$b]."', ";
+      }
+
+      $prev_booking = $this->Common_model->GetJoinDatas('appointments A', 'appointment_meta AM', 'A.fld_aid = AM.fld_amappid', "`fld_adate`", "`fld_amstaff_time` IN ('".trim($bookedtime, ", '")."') AND `fld_adate` = '".$court_date."' AND `fld_aserv` = '".$court."' AND `fld_astatus` != 'Cancelled'");
+      if(!empty($prev_booking)) {
+        echo json_encode(['status' => 300, 'alert_msg' => 'Sorry, but this slot is already booked!']);
+        exit;
+      }
+
+      /* Fresh entry */
       $checkphone = (!empty($signin_phone)) ? $signin_phone : $custphone;
       $check = ExistorNot('customers', ['fld_phone' => $checkphone]); 
 
       $cust_rec = $this->Common_model->GetDatas('customers', 'fld_id, fld_custid', ['fld_status' => 'Active'], "`fld_id` DESC");
-      $appoint_rec = $this->Common_model->GetDatas('appointments', 'fld_aid, fld_appointid', ['fld_aid !=' => ''], "`fld_aid` DESC");
+      $appoint_rec = $this->Common_model->GetDatas('appointments', 'fld_aid, fld_appointid', ['fld_aid !=' => '', 'fld_atype IS NULL' => NULL], "`fld_aid` DESC");
 
       $CustID = 'WC1000';
       if(!empty($cust_rec)) {
@@ -573,16 +577,13 @@ class Frontend extends CI_Controller {
 
       $new_app_data = [
           'fld_appointid ' => $AppointID,
-          'fld_payment_id ' => $payment_id,
-          'fld_order_id ' => $order_id,
-          'fld_signature ' => $signature,
           'fld_adate' => $court_date,
           'fld_atime' => json_encode($timings),
           'fld_acustid' => $cust_lastid,
           'fld_aserv' => $court,
           'fld_aduring' => $newduration,
           'fld_arate' => $newrate,
-          'fld_astatus' => 'Confirm',
+          'fld_astatus' => 'Pending',
           'fld_apaymode' => $paymode,
           'fld_apaystatus' => '',
           'fld_anotes' => $serv_notes,
@@ -611,26 +612,13 @@ class Frontend extends CI_Controller {
         $result = $this->Common_model->InsertBatchData('appointment_meta', $new_meta_data);
 
         $this->Common_model->InsertData('payments', [ 'fld_appid' => $app_lastid, 'fld_prate' => ($newrate), 'fld_ppaid' => ($newrate), 'fld_pbalance' => 0, 'fld_phistory' => json_encode($history)]);
-
         $prev_used_cnt = $this->Common_model->GetDatas('coupons', 'fld_cpused', ['fld_cpid' => $coupon_id]);
 
         $cp_cnt = 1;
-
         if(!empty($prev_used_cnt)) {
           $cp_cnt = ((int)$prev_used_cnt[0]['fld_cpused'] + 1);
         }
         $this->Common_model->UpdateData('coupons', ['fld_cpused' => $cp_cnt], ['fld_cpid' => $coupon_id]);
-
-        // Sending Email
-        $tomail = (!empty($check)) ? $check[0]['fld_email'] : $custemail;
-        $name = (!empty($check)) ? $check[0]['fld_name'] : $custname;
-        $subject = '🎉 Your Booking is Confirmed! Thank You for Booking with Us! 🎉';
-
-        $bookingtemplates = BookingTemplate(['name' => $name, 'appoint_id' =>  $AppointID, 'court' => $court, 'date' => showDate($court_date), 'time' => $timings, 'amount' => $newrate, 'couponAmount' => $coupon_amount, 'gstAmount' => $gst_amount, 'payCharge' => $payment_amount]);
-
-        $Pdf = $this->pdf_generate($AppointID);
-        $mail = SendEmail($tomail, "", "", $subject, $bookingtemplates, $Pdf);
-        $this->Common_model->UpdateData('appointments', ['fld_conf_email' => $mail], ['fld_aid' => $app_lastid]);
 
         $this->session->set_userdata('login_cust_info', [
           'cust_id' => (empty($check) ? $cust_lastid : $check[0]['fld_id']),
@@ -641,12 +629,64 @@ class Frontend extends CI_Controller {
         ]);
     }
 
-    $response = ($result > 0) ? ['status' => 200, 'alert_msg' => alertMsg('add_suc')] : ['status' => 401, 'alert_msg' => alertMsg('add_fail')];
-    
+    $response = ($result > 0) ? ['status' => 200, 'alert_msg' => alertMsg('add_suc'), 'appoint_id' => $AppointID] : ['status' => 401, 'alert_msg' => alertMsg('add_fail')];
+
     echo json_encode($response);
     exit;
   }
 
+  public function update_appointment() {
+    
+    $info = checkCustLogin();
+    // Razorpay Status
+    $appoint_id = $this->input->post('appoint_id', TRUE);
+    $payment_id = $this->input->post('pay_id', TRUE);
+    $order_id = $this->input->post('ord_id', TRUE);
+    $signature = $this->input->post('signature', TRUE);
+    $paydata = $this->input->post('paymentdata', TRUE);
+
+    $razorstatus = $paydata['status'];
+    $paystatus = 'Paid';
+		$status = "Confirmed";
+    if(!empty($paydata)) {
+			if($razorstatus == "created" || $razorstatus == "authorized" || $razorstatus == "pending") {
+        $paystatus = $status = "Pending";
+			} elseif($razorstatus == "failed" || $razorstatus == "cancelled") {
+        $paystatus = $status = "Cancelled";
+			} elseif($razorstatus == "refunded") {
+        $paystatus = $status = "Refunded";
+			}
+		}
+
+    $result = 0;
+    $app_detail = $this->Common_model->GetJoinDatas('appointments A', 'customers C', 'A.fld_acustid = C.fld_id', '`fld_aid`, `fld_appointid`, `fld_name`, `fld_email`, `fld_phone`, `fld_aserv`, `fld_adate`, `fld_atime`, `fld_arate`, `fld_acpamt`', ['fld_appointid' => $appoint_id]);
+    if(!empty($app_detail)) {
+      $balance = ((float)$app_detail[0]['fld_arate'] - (float)$paydata['amount']);
+      $this->Common_model->UpdateData('appointments', ['fld_astatus' => $status, 'fld_payment_id' => $payment_id, 'fld_order_id' => $order_id, 'fld_signature' => $signature, 'fld_apaystatus' => $paydata['status'], 'fld_abalance' => $balance], ['fld_appointid' => $appoint_id]);
+      $this->Common_model->UpdateData('payments', ['fld_ppaid' => $paydata['amount'], 'fld_pbalance' => $balance, 'fld_pstatus' => $paystatus, 'fld_ppayid' => $payment_id, 'fld_pvpa' => $paydata['vpa'], 'fld_pemail' => $paydata['email'], 'fld_pcont' => $paydata['contact'], 'fld_pcreated_at' => $paydata['created_at'], 'fld_pamt' => $paydata['amount']], ['fld_appid' => $app_detail[0]['fld_aid']]);
+
+      // Sending Email
+      $tomail = (!empty($app_detail)) ? $app_detail[0]['fld_email'] : $info['cust_email'];
+      $name = (!empty($app_detail)) ? $app_detail[0]['fld_name'] : $info['cust_name'];
+      $subject = '🎉 Your Booking is Confirmed! Thank You for Booking with Us! 🎉';
+      $court = $app_detail[0]['fld_aserv'];
+      $court_date = $app_detail[0]['fld_adate'];
+      $timings = json_decode($app_detail[0]['fld_atime']);
+      $newrate = $app_detail[0]['fld_arate'];
+      $coupon_amount = $app_detail[0]['fld_acpamt'];
+      $gst_amount = 0;
+      $payment_amount = $app_detail[0]['fld_arate'];
+
+      $bookingtemplates = BookingTemplate(['name' => $name, 'appoint_id' =>  $appoint_id, 'court' => $court, 'date' => showDate($court_date), 'time' => $timings, 'amount' => $newrate, 'couponAmount' => $coupon_amount, 'gstAmount' => $gst_amount, 'payCharge' => $payment_amount]);
+
+      $Pdf = $this->pdf_generate($appoint_id);
+      $mail = SendEmail($tomail, "", "", $subject, $bookingtemplates, $Pdf);
+      $result = $this->Common_model->UpdateData('appointments', ['fld_conf_email' => $mail], ['fld_appointid' => $appoint_id]);
+    }
+    $response = (!empty($result)) ? ['status' => 200, 'alert_msg' => alertMsg('add_suc')] : ['status' => 401, 'alert_msg' => alertMsg('add_fail')];
+    echo json_encode($response);
+    exit;
+  }
 
   public function pdf_generate($AppointID = NULL) {
 

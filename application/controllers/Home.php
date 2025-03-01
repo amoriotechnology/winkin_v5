@@ -15,11 +15,9 @@ class Home extends CI_Controller {
 		}
 	}
 
-
 	public function index() {
-
+		
 		return redirect('bookings');
-
 		$start = date('Y-m-01');
 		$end = date('Y-m-31');
 		$today = date('Y-m-d');
