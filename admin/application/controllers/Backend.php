@@ -904,6 +904,7 @@ class Backend extends CI_Controller {
 
 	/* ------------ Cancelling the appointment ------------- */
 	public function cancel_appoint() {
+		
 		$id = trim($this->input->post('id', TRUE));
 		$type = trim($this->input->post('type', TRUE));
 

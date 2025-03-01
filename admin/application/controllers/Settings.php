@@ -278,12 +278,11 @@ class Settings extends CI_Controller {
 
 
 	public function common_update() {
-
-		$id = trim($this->input->post('id', TRUE));
+        $id = trim($this->input->post('id', TRUE));
 		$table = trim($this->input->post('table', TRUE));
 		$coloum = trim($this->input->post('coloum', TRUE));
 		$type = trim($this->input->post('type', TRUE));
-
+        $value=[$coloum => $type];
 		if($table == "calender") {
 			$table = "staff_attendance";
 			$where = ["md5(`fld_said`)" => $id];
@@ -292,6 +291,25 @@ class Settings extends CI_Controller {
 			$table = "appointments";
 			$where = ["md5(`fld_appointid`)" => $id];
 		
+		}  else if($table == "update_status") {
+             $paymentMode = trim($this->input->post('paymentMode', TRUE)) ?: '';
+
+			if ($type == 'admin_update') {
+				$type = "Confirm";
+			}
+			$table = "appointments";
+			$where = ["md5(`fld_appointid`)" => $id];
+			$check = $this->Common_model->GetJoinDatas('appointments AP', 'customers C', "`AP`.`fld_acustid` = `C`.`fld_id`", "`AP`.fld_appointid,`AP`.fld_adate,`AP`.fld_aserv,`AP`.fld_atime, `C`.fld_name,`C`.fld_lastname,`C`.fld_email,`AP`.fld_arate,`AP`.fld_apaymode", $where);
+		    $tomail           = $check[0]['fld_email'];
+			$name             = $check[0]['fld_name'] . " " . $check[0]['fld_lastname'];
+			$subject          = 'Your Booking is Confirmed! Thank You for Booking with Us';
+			if ($paymentMode === 'true') { $paymentMode ='';}
+			$bookingtemplates = BookingTemplate([ 'name' => $name, 'type' => $type, 'appoint_id' => $check[0]['fld_appointid'], 'payment_method' => $paymentMode, 'court' => $check[0]['fld_aserv'], 'date' => showDate($check[0]['fld_adate']), 'time' => json_decode($check[0]['fld_atime'], true), 'amount' => $check[0]['fld_arate'], 'couponAmount' => '', 'gstAmount' => '', 'payCharge' => '']);
+			if ($type == 'Cancelled') {
+				$subject = 'Your Booking is Cancelled! Please Try After Sometime';
+			}
+			$mail = SendEmail($tomail, "", "", $subject, $bookingtemplates);
+			$value =  [$coloum => $type, 'fld_apaymode' => $paymentMode];
 		} else if($table == "leave") {
 			$table = "leaves";
 			$where = ["md5(`fld_lid`)" => $id];
@@ -327,8 +345,9 @@ class Settings extends CI_Controller {
 			$table = "coupons";
 			$where = ["md5(`fld_cpid`)" => $id];
 		}
-		logEntry('Deactive Staff', 'Staff', 'Staff Deactive successfully', 'Fail', '');
-		$result = $this->Common_model->UpdateData($table, [$coloum => $type], $where);
+
+     	$result = $this->Common_model->UpdateData($table, $value, $where);
+
 		$response = ($result > 0) ? ['status' => 200, 'alert_msg' => alertMsg('add_suc')] : ['status' => 401, 'alert_msg' => alertMsg('add_fail')];
 		echo json_encode($response);
 		exit;
