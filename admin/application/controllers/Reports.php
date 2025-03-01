@@ -67,61 +67,77 @@ class Reports extends CI_Controller {
         $search         = $this->input->post('search', TRUE)['value'];
         $orderField     = $this->input->post('columns', TRUE)[$this->input->post('order', TRUE)[0]['column']]['data'];
         $orderDirection = $this->input->post("order", TRUE)[0]["dir"];
-        $searchColumns  = $this->input->post('search_columns', TRUE);
+        $searchColumns = $this->input->post('search_columns', TRUE); 
+        $datefilter     = $this->input->post('datefilter', TRUE);
 
-        $where      = ['A.fld_atype' => NULL];
-        $countwhere = ['fld_atype' => NULL];
+	    $where = ['A.fld_atype' => NULL];
 
-        if (! empty($searchColumns)) {
-            foreach ($searchColumns as $columnIndex => $searchValue) {
-                if (! empty($searchValue)) {
-                    switch ($columnIndex) {
-                    case 1: // Booking ID
-                        $where["A.fld_appointid LIKE"]    = "%$searchValue%";
-                        $countwhere["fld_appointid LIKE"] = "%$searchValue%";
-                        break;
-                    case 2: // Booking Date
-                        $where["DATE_FORMAT(A.fld_booked_date, '%d/%m/%Y') LIKE"]    = "%$searchValue%";
-                        $countwhere["DATE_FORMAT(fld_booked_date, '%d/%m/%Y') LIKE"] = "%$searchValue%";
-                        break;
-                    case 3: // Slot Date
-                        $where["DATE_FORMAT(A.fld_adate, '%d/%m/%Y') LIKE"]    = "%$searchValue%";
-                        $countwhere["DATE_FORMAT(fld_adate, '%d/%m/%Y') LIKE"] = "%$searchValue%";
-                        break;
-                    case 4: // Slot Time
-                        $where["A.fld_atime LIKE"]    = "%$searchValue%";
-                        $countwhere["fld_atime LIKE"] = "%$searchValue%";
-                        break;
-                    case 5: // Court
-                        $where["A.fld_aserv LIKE"]    = "%$searchValue%";
-                        $countwhere["fld_aserv LIKE"] = "%$searchValue%";
-                        break;
-                    case 6: // Name
-                        $where["C.fld_name LIKE"]    = "%$searchValue%";
-                        $countwhere["fld_name LIKE"] = "%$searchValue%";
-                        break;
-                    case 7: // Phone
-                        $where["C.fld_phone LIKE"]    = "%$searchValue%";
-                        $countwhere["fld_phone LIKE"] = "%$searchValue%";
-                        break;
-                    case 8: // Pay Mode
-                        $where["A.fld_apaymode LIKE"]    = "%$searchValue%";
-                        $countwhere["fld_apaymode LIKE"] = "%$searchValue%";
-                        break;
-                    case 9: // Amount
-                        $where["A.fld_arate"]    = $searchValue;
-                        $countwhere["fld_arate"] = $searchValue;
-                        break;
-                    case 10: // Status
-                        $where["A.fld_astatus LIKE"]    = "%$searchValue%";
-                        $countwhere["fld_astatus LIKE"] = "%$searchValue%";
-                        break;
-                    }
-                }
-            }
-        }
+	    if (!empty($searchColumns)) {
+		    foreach ($searchColumns as $columnIndex => $searchValue) {
+		        if (!empty($searchValue)) {
+		            switch ($columnIndex) {
 
-        $total      = $this->Common_model->GetDatas('appointments', '*', $countwhere);
+		                case 1: // Booking ID
+		                    $where["A.fld_appointid LIKE"] = "%$searchValue%";		                    
+		                    break;
+		                case 2: // Booking Date
+		                    $searchDate = date("Y-m-d", strtotime(str_replace('/', '-', $searchValue)));
+                            $where["DATE_FORMAT(A.fld_booked_date, '%Y-%m-%d') LIKE"] = "%$searchDate%";
+		                    break;
+		                case 3: // Slot Date
+		                    $searchDate = date("Y-m-d", strtotime(str_replace('/', '-', $searchValue)));
+                            $where["DATE_FORMAT(A.fld_adate, '%Y-%m-%d') LIKE"] = "%$searchDate%";
+		                    break;
+		                case 4: // Slot Time
+		                    if (strpos($searchValue, '-') !== false) {
+		                        list($startTime, $endTime) = explode(" - ", $searchValue);
+		                        $where["A.fld_atime LIKE"] = "%$startTime%"; 
+		                    } else {
+		                        $where["A.fld_atime LIKE"] = "%$searchValue%";
+		                    }
+		                    break;
+		                case 5: // Court
+		                    $searchValueFormatted = str_replace(' ', '', $searchValue);
+                            $where["REPLACE(A.fld_aserv, ' ', '') LIKE"] = "%$searchValueFormatted%";
+		                    break;
+		                case 6: // Name
+		                    $where["C.fld_name LIKE"] = "%$searchValue%";
+		                    break;
+		                case 7: // Phone
+		                    $where["C.fld_phone LIKE"] = "%$searchValue%";
+		                    break;
+		                case 8: // Pay Mode
+		                    $where["A.fld_apaymode LIKE"] = "%$searchValue%";
+		                    break;
+		                case 9: // Amount
+		                    $where["A.fld_arate LIKE"] = '%' . (float) str_replace(',', '', $searchValue) . '%';
+		                    break;
+		                case 10: // Status
+		                    $where["A.fld_astatus LIKE"] = "%$searchValue%";
+		                    break;
+		            }
+		        }
+		    }
+		}
+
+		$dateWhere = [];
+		if (!empty($datefilter)) {
+		    $split = explode(" to ", $datefilter);
+	        $startfilter = struDate($split[0]);
+	        $endfilter = struDate($split[1]);
+	        $startfilter = $startfilter . " 00:00:00";
+            $endfilter =  $endfilter . " 23:59:59"; 
+
+		    $dateWhere = [
+		        'A.fld_adate >=' => $startfilter,
+		        'A.fld_adate <=' => $endfilter
+		    ];
+		}
+
+		$where = array_merge($where, $dateWhere);
+
+        $total = $this->Common_model->GetJoinDatas('appointments A', 'customers C', '`A`.`fld_acustid` = `C`.`fld_id`', '*', $where);
+
         $totalItems = count($total);
 
         $table1     = 'appointments A';
@@ -134,9 +150,6 @@ class Reports extends CI_Controller {
 	       (SELECT P.fld_pbalance FROM payments P WHERE P.fld_appid = A.fld_aid ORDER BY P.fld_pdate DESC LIMIT 1) AS balance";
 
         $items = $this->Common_model->getBookings($table1, $table2, $table3, $table1cond, $table2cond, $select, $orderField . ' ' . $orderDirection, $limit, $start, $search, $where);
-
-        // echo $this->db->last_query();
-
         $data = [];
         $i    = $start + 1;
 
@@ -214,13 +227,26 @@ class Reports extends CI_Controller {
         $search         = $this->input->post('search', TRUE)['value'];
         $orderField     = $this->input->post('columns', TRUE)[$this->input->post('order', TRUE)[0]['column']]['data'];
         $orderDirection = $this->input->post("order", TRUE)[0]["dir"];
+        $datefilter = $this->input->post('datefilter', TRUE);
+		$where = []; 
 
-        $total      = $this->Common_model->GetDatas('log_entry', "DISTINCT(`id`)");
-        $totalItems = count($total);
+		if (!empty($datefilter)) {
+		    $split = explode(" to ", $datefilter);
+		    $startfilter = struDate($split[0]) . " 00:00:00"; 
+		    $endfilter = struDate($split[1]) . " 23:59:59";
+		    $where = [
+		        'created_date >=' => $startfilter,
+		        'created_date <=' => $endfilter
+		    ];
+		}
 
-        $table1 = 'log_entry';
-        $select = "*";
-        $items  = $this->Common_model->getLogs($table1, $select, $orderField . ' ' . $orderDirection, $limit, $start, $search);
+		$total = $this->Common_model->GetDatas('log_entry', "*", $where);
+		$totalItems = count($total);
+
+		$table1 = 'log_entry';
+		$select = "*";
+		$items = $this->Common_model->getLogs($table1, $select, $orderField . ' ' . $orderDirection, $limit, $start, $search, $where);
+
 
         $data = [];
         $i    = $start + 1;
@@ -278,54 +304,63 @@ class Reports extends CI_Controller {
         $search         = $this->input->post('search', TRUE)['value'];
         $orderField     = $this->input->post('columns', TRUE)[$this->input->post('order', TRUE)[0]['column']]['data'];
         $orderDirection = $this->input->post("order", TRUE)[0]["dir"];
-        $searchColumns  = $this->input->post('search_columns', TRUE);
-        $totalItems     = 0;
 
-        $col_where  = ['A.fld_atype' => NULL];
-        $countwhere = ['fld_atype' => NULL];
+        $searchColumns = $this->input->post('search_columns', TRUE); 
+        $totalItems = 0;
+        
+        $col_where = ['A.fld_atype' => NULL];
 
-        if (! empty($searchColumns)) {
-            foreach ($searchColumns as $columnIndex => $searchValue) {
-                if (! empty($searchValue)) {
-                    switch ($columnIndex) {
-                    case 1:
-                        $col_where["DATE_FORMAT(A.fld_booked_date, '%d/%m/%Y') LIKE"] = "%$searchValue%";
-                        $countwhere["DATE_FORMAT(fld_booked_date, '%d/%m/%Y') LIKE"]  = "%$searchValue%";
-                        break;
-                    case 2:
-                        $col_where["DATE_FORMAT(A.fld_adate, '%d/%m/%Y') LIKE"] = "%$searchValue%";
-                        $countwhere["DATE_FORMAT(fld_adate, '%d/%m/%Y') LIKE"]  = "%$searchValue%";
-                        break;
-                    case 3:
-                        $col_where["A.fld_appointid LIKE"] = "%$searchValue%";
-                        $countwhere["fld_appointid LIKE"]  = "%$searchValue%";
-                        break;
-                    case 4:
-                        $col_where["A.fld_aserv LIKE"] = "%$searchValue%";
-                        $countwhere["fld_aserv LIKE"]  = "%$searchValue%";
-                        break;
-                    case 5:
-                        $col_where["A.fld_aserv LIKE"] = "%$searchValue%";
-                        $countwhere["fld_aserv LIKE"]  = "%$searchValue%";
-                        break;
-                    case 6:
-                        $col_where["C.fld_name LIKE"] = "%$searchValue%";
-                        $countwhere["fld_name LIKE"]  = "%$searchValue%";
-                        break;
-                    case 7:
-                        $col_where["C.fld_phone LIKE"] = "%$searchValue%";
-                        $countwhere["fld_phone LIKE"]  = "%$searchValue%";
-                        break;
-                    case 8:
-                        $col_where["A.fld_apaymode LIKE"] = "%$searchValue%";
-                        $countwhere["fld_apaymode LIKE"]  = "%$searchValue%";
-                        break;
-                    }
-                }
-            }
-        }
+	    if (!empty($searchColumns)) {
+		    foreach ($searchColumns as $columnIndex => $searchValue) {
+		        if (!empty($searchValue)) {
+		            switch ($columnIndex) {
+		                case 1:
+		                    $col_where["DATE_FORMAT(A.fld_booked_date, '%d/%m/%Y') LIKE"] = "%$searchValue%";
+		                    break;
+		                case 2: 
+		                    $col_where["DATE_FORMAT(A.fld_adate, '%d/%m/%Y') LIKE"] = "%$searchValue%";
+		                    break;
+		                case 3: 
+		                    $col_where["A.fld_appointid LIKE"] = "%$searchValue%";
+		                    break;
+		                case 4: 
+		                    $searchValueFormatted = str_replace(' ', '', $searchValue);
+                            $col_where["REPLACE(A.fld_aserv, ' ', '') LIKE"] = "%$searchValueFormatted%";
+		                    break;
+		                case 5: 
+		                    $col_where["C.fld_name LIKE"] = "%$searchValue%";
+		                    break;
+		                case 6: 
+		                    $col_where["C.fld_phone LIKE"] = "%$searchValue%";
+		                    break;
+		                case 7: 
+		                    $col_where["A.fld_apaymode LIKE"] = "%$searchValue%";
+		                    break;
+		            }
+		        }
+		    }
+		}
 
-        $totalItems = $this->Common_model->getCount('appointments', ['fld_atype' => NULL], $search);
+
+		$dateWhere = [];
+		if (!empty($datefilter)) {
+		    $split = explode(" to ", $datefilter);
+	        $startfilter = struDate($split[0]);
+	        $endfilter = struDate($split[1]);
+	        $startfilter = $startfilter . " 00:00:00";
+            $endfilter =  $endfilter . " 23:59:59"; 
+
+		    $dateWhere = [
+		        'A.fld_booked_date >=' => $startfilter,
+		        'A.fld_booked_date <=' => $endfilter
+		    ];
+		}
+
+		$where = array_merge($col_where, $dateWhere);
+
+        $total = $this->Common_model->GetJoinDatas('appointments A', 'customers C', '`A`.`fld_acustid` = `C`.`fld_id`', '*', $where);
+
+        $totalItems = count($total);
 
         $table1     = 'appointments A';
         $table2     = 'customers C';
@@ -334,19 +369,9 @@ class Reports extends CI_Controller {
         $table2cond = '`P`.`fld_appid` = `A`.`fld_aid`';
         $select     = "A.*, C.*, P.*";
 
-        $startfilter = $endfilter = $where = "";
-        if (! empty($datefilter)) {
-            $split       = explode(" to ", $datefilter);
-            $startfilter = struDate($split[0]);
-            $endfilter   = struDate($split[1]);
-            $startfilter = $startfilter . " 00:00:00";
-            $endfilter   = $endfilter . " 23:59:59";
 
-            $where      = ['fld_booked_date >=' => $startfilter, 'fld_booked_date <=' => $endfilter, 'fld_atype' => NULL];
-            $totalItems = $this->Common_model->getCount('appointments', $where, $search, '`fld_aid`', $countwhere);
-        }
+        $items = $this->Common_model->getRevenue($table1, $table2, $table3, $table1cond, $table2cond, $select, $orderField . ' ' . $orderDirection, $limit, $start, $search, $where);
 
-        $items = $this->Common_model->getRevenue($table1, $table2, $table3, $table1cond, $table2cond, $select, $orderField . ' ' . $orderDirection, $limit, $start, $search, $col_where);
 
         $data = [];
         $i    = (float) $start + 1;
@@ -476,37 +501,56 @@ class Reports extends CI_Controller {
         $search         = $this->input->post('search', TRUE)['value'];
         $orderField     = $this->input->post('columns', TRUE)[$this->input->post('order', TRUE)[0]['column']]['data'];
         $orderDirection = $this->input->post("order", TRUE)[0]["dir"];
+        $datefilter     = $this->input->post('datefilter', TRUE);
+        $searchColumns = $this->input->post('search_columns', TRUE); 
+        $where = [];
+	    if (!empty($searchColumns)) {
+		    foreach ($searchColumns as $columnIndex => $searchValue) {
+		        if (!empty($searchValue)) {
+		            switch ($columnIndex) {
+		                case 1:
+		                    $searchDate = date("Y-m-d", strtotime(str_replace('/', '-', $searchValue)));
+                            $where["DATE_FORMAT(fld_created_date, '%Y-%m-%d') LIKE"] = "%$searchDate%";
+		                    break;
+		                case 2: 
+		                    $where["fld_custid LIKE"] = "%$searchValue%";
+		                    break;
+		                case 3: 
+		                    $where["fld_name LIKE"] = "%$searchValue%";
+		                    break;
+		                case 4: 
+		                    $where["fld_phone LIKE"] = "%$searchValue%";
+		                    break;
+		                case 5: 
+		                    $where["fld_email LIKE"] = "%$searchValue%";
+		                    break;
+		                case 6:
+		                    $searchDate = date("Y-m-d", strtotime(str_replace('/', '-', $searchValue)));
+                            $where["DATE_FORMAT(fld_dob, '%Y-%m-%d') LIKE"] = "%$searchDate%";
+		                    break;
+		            }
+		        }
+		    }
+		}
 
-        $searchColumns = $this->input->post('search_columns', TRUE);
 
-        if (! empty($searchColumns)) {
-            foreach ($searchColumns as $columnIndex => $searchValue) {
-                if (! empty($searchValue)) {
-                    switch ($columnIndex) {
-                    case 1:
-                        $col_where["DATE_FORMAT(fld_created_date, '%d/%m/%Y') LIKE"] = "%$searchValue%";
-                        break;
-                    case 2:
-                        $col_where["fld_custid LIKE"] = "%$searchValue%";
-                        break;
-                    case 3:
-                        $col_where["fld_name LIKE"] = "%$searchValue%";
-                        break;
-                    case 4:
-                        $col_where["fld_phone LIKE"] = "%$searchValue%";
-                        break;
-                    case 5:
-                        $col_where["fld_email LIKE"] = "%$searchValue%";
-                        break;
-                    case 6:
-                        $col_where["DATE_FORMAT(fld_dob, '%d/%m/%Y') LIKE"] = "%$searchValue%";
-                        break;
-                    }
-                }
-            }
-        }
+		$dateWhere = [];
+		if (!empty($datefilter)) {
+		    $split = explode(" to ", $datefilter);
+	        $startfilter = struDate($split[0]);
+	        $endfilter = struDate($split[1]);
+	        $startfilter = $startfilter . " 00:00:00";
+            $endfilter =  $endfilter . " 23:59:59"; 
 
-        $searchdata = ['fld_custid' => $search, 'fld_name' => $search, 'fld_phone' => $search, 'fld_email' => $search, 'fld_gender' => $search, 'fld_status' => $search, 'fld_address' => $search, 'fld_type' => $search, "DATE_FORMAT(`fld_dob`, '%M %d,%Y')" => $search, "DATE_FORMAT(`fld_anniversary`, '%M %d,%Y')" => $search];
+		    $dateWhere = [
+		        'fld_created_date >=' => $startfilter,
+		        'fld_created_date <=' => $endfilter
+		    ];
+		}
+
+		$col_where = array_merge($where, $dateWhere);
+
+        $searchdata = ['fld_custid' => $search, 'fld_name' => $search, 'fld_phone' => $search, 'fld_email' => $search,"DATE_FORMAT(`fld_dob`, '%Y-%m-%d')" => $search, "DATE_FORMAT(`fld_created_date`, '%Y-%m-%d')" => $search];
 
         $totalItems = $this->Common_model->getCount('customers', "", $searchdata, "`fld_id`", $col_where);
         $items      = $this->Common_model->PaginationData('customers', "*", "", "`$orderField` $orderDirection", 10, $start, $searchdata, $col_where);
@@ -727,7 +771,7 @@ class Reports extends CI_Controller {
         $orderDirection = $this->input->post("order", TRUE)[0]["dir"];
 
         $searchColumns = $this->input->post('search_columns', TRUE);
-
+        $col_where = [];
         if (! empty($searchColumns)) {
             foreach ($searchColumns as $columnIndex => $searchValue) {
                 if (! empty($searchValue)) {
@@ -907,40 +951,59 @@ class Reports extends CI_Controller {
         $search         = $this->input->post('search', TRUE)['value'];
         $orderField     = $this->input->post('columns', TRUE)[$this->input->post('order', TRUE)[0]['column']]['data'];
         $orderDirection = $this->input->post("order", TRUE)[0]["dir"];
+        $datefilter     = $this->input->post('datefilter', TRUE);
 
-        $searchColumns = $this->input->post('search_columns', TRUE);
+        $searchColumns = $this->input->post('search_columns', TRUE); 
 
-        if (! empty($searchColumns)) {
-            foreach ($searchColumns as $columnIndex => $searchValue) {
-                if (! empty($searchValue)) {
-                    switch ($columnIndex) {
-                    case 1:
-                        $col_where["fld_staffid LIKE"] = "%$searchValue%";
-                        break;
-                    case 2:
-                        $col_where["fld_uname LIKE"] = "%$searchValue%";
-                        break;
-                    case 3:
-                        $col_where["fld_uphone LIKE"] = "%$searchValue%";
-                        break;
-                    case 4:
-                        $col_where["fld_uemail LIKE"] = "%$searchValue%";
-                        break;
-                    case 5:
-                        $col_where["fld_access LIKE"] = "%$searchValue%";
-                        break;
-                    case 6:
-                        $col_where["DATE_FORMAT(fld_udob, '%d/%m/%Y') LIKE"] = "%$searchValue%";
-                        break;
-                    case 7:
-                        $col_where["fld_ustatus LIKE"] = "%$searchValue%";
-                        break;
-                    }
-                }
-            }
-        }
+        $where = [];
+	    if (!empty($searchColumns)) {
+		    foreach ($searchColumns as $columnIndex => $searchValue) {
+		        if (!empty($searchValue)) {
+		            switch ($columnIndex) {
+		                case 1:
+		                    $where["fld_staffid LIKE"] = "%$searchValue%";
+		                    break;
+		                case 2: 
+		                    $where["fld_uname LIKE"] = "%$searchValue%";
+		                    break;
+		                case 3: 
+		                    $where["fld_uphone LIKE"] = "%$searchValue%";
+		                    break;
+		                case 4: 
+		                    $where["fld_uemail LIKE"] = "%$searchValue%";
+		                    break;
+		                case 5: 
+		                    $where["fld_access LIKE"] = "%$searchValue%";
+		                    break;
+		                case 6:
+		                    $where["DATE_FORMAT(fld_udob, '%d/%m/%Y') LIKE"] = "%$searchValue%";
+		                    break;
+		                case 7: 
+		                    $where["fld_ustatus LIKE"] = "%$searchValue%";
+		                    break;
+		            }
+		        }
+		    }
+		}
 
-        $searchdata = ['fld_uname' => $search, 'fld_staffid' => $search, 'fld_uphone' => $search, 'fld_uemail' => $search, 'fld_ugender' => $search, 'fld_ustatus' => $search, 'fld_umarital_sts' => $search, 'fld_uaddress' => $search, 'fld_uservices' => $search, 'fld_uexperience' => $search, "DATE_FORMAT(`fld_udob`, '%M %d,%Y')" => $search, "DATE_FORMAT(`fld_udoj`, '%M %d,%Y')" => $search];
+		$dateWhere = [];
+		if (!empty($datefilter)) {
+		    $split = explode(" to ", $datefilter);
+	        $startfilter = struDate($split[0]);
+	        $endfilter = struDate($split[1]);
+	        $startfilter = $startfilter . " 00:00:00";
+            $endfilter =  $endfilter . " 23:59:59"; 
+
+		    $dateWhere = [
+		        'fld_ucreated_date >=' => $startfilter,
+		        'fld_ucreated_date <=' => $endfilter
+		    ];
+		}
+
+		$col_where = array_merge($where, $dateWhere);
+
+
+        $searchdata = [ 'fld_uname' => $search, 'fld_staffid' => $search, 'fld_uphone' => $search, 'fld_uemail' => $search, 'fld_ustatus' => $search, 'fld_access' => $search, "DATE_FORMAT(`fld_udob`, '%d/%m/%Y')" => $search ];
 
         $totalItems = $this->Common_model->getCount('users', ['fld_uroles' => 2], $searchdata, "`fld_uid`", $col_where);
         $items      = $this->Common_model->PaginationData('users', "*", ['fld_uroles' => 2], "`$orderField` $orderDirection", 10, $start, $searchdata, $col_where);

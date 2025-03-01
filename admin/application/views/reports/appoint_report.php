@@ -25,8 +25,31 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
+                            <div class="row d-flex justify-content-end">
+                                <div class="col-xl-4 col-md-12 col-sm-12">
+                                    <div class="input-group">
+                                        <input type="text" name="datefilter" id="datefilter" class="form-control datefilter" placeholder="Search date">
+                                        <button type="button" id="search" class="btn btn-primary">Search</button>&nbsp;
+                                        <a href="<?= base_url('bookings') ?>" id="search" class="btn btn-primary">Refresh</a>
+                                    </div>
+                                </div>
+                            </div>
                             <table id="booking_list" class="table table-bordered table-hover text-nowrap w-100">
                                 <thead class="table-dark">
+                                    <tr class="filter-row">
+                                        <td></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td><input type="text" class="column-search form-control"></td>
+                                        <td></td>
+                                    </tr>
                                     <tr>
                                         <th>S.No</th>
                                         <th>Booking ID</th>
@@ -40,20 +63,6 @@
                                         <th>Amount(₹)</th>
                                         <th>Status</th>
                                         <th>Action</th>
-                                    </tr>
-                                    <tr class="filter-row">
-                                        <th></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                        <th></th>
                                     </tr>
                                 </thead>
                             </table>
@@ -70,6 +79,10 @@
 
 <script type="text/javascript">
     $(document).ready(function() {
+
+        $("#datefilter").daterangepicker({
+            locale: { format: 'DD/MM/YYYY' },
+        });
 
         var csrfName = "<?= $this->security->get_csrf_token_name() ?>";
         var csrfHash = "<?= $this->security->get_csrf_hash() ?>";
@@ -219,6 +232,7 @@ function sendAjaxRequest(status, data = {}) {
                 "type": "POST",
                "data": function(d) {
                   d['<?= $this->security->get_csrf_token_name(); ?>'] = '<?= $this->security->get_csrf_hash(); ?>';
+                  d['datefilter'] = $('#datefilter').val();
                     $('#booking_list .column-search').each(function() {
                         var columnIndex = $(this).parent().index();
                         if (this.value) {
@@ -365,6 +379,10 @@ function sendAjaxRequest(status, data = {}) {
             },
 
             ],
+        });
+
+        $('#search').on('click', function() {
+            table.draw();
         });
         
         $('#booking_list thead').on('keyup change', '.column-search', function() {

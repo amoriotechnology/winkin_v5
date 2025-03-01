@@ -21,32 +21,41 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                        <table id="staff_list" class="table table-bordered table-hover text-nowrap w-100">
-                            <thead class="table-dark">
-                                <tr class="text-center">
-                                    <th>S.No</th>
-                                    <th>Staff ID</th>
-                                    <th>Name</th>
-                                    <th>Phone</th>
-                                    <th>Email</th>
-                                    <th>Access</th>
-                                    <th>Date of Birth</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                                <tr class="filter-row">
-                                    <th></th>
-                                    <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                    <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                    <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                    <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                    <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                    <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                    <th><input type="text" class="column-search form-control" placeholder="Search"></th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                        </table>
+                            <div class="row d-flex justify-content-end">
+                                <div class="col-xl-4 col-md-12 col-sm-12">
+                                    <div class="input-group">
+                                        <input type="text" name="datefilter" id="datefilter" class="form-control datefilter" placeholder="Search date">
+                                        <button type="button" id="search" class="btn btn-primary">Search</button>&nbsp;
+                                        <a href="<?= base_url('staff') ?>" id="search" class="btn btn-primary">Refresh</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <table id="staff_list" class="table table-bordered table-hover text-nowrap w-100">
+                                <thead class="table-dark">
+                                    <tr class="filter-row">
+                                        <th></th>
+                                        <th><input type="text" class="column-search form-control"></th>
+                                        <th><input type="text" class="column-search form-control"></th>
+                                        <th><input type="text" class="column-search form-control"></th>
+                                        <th><input type="text" class="column-search form-control"></th>
+                                        <th><input type="text" class="column-search form-control"></th>
+                                        <th><input type="text" class="column-search form-control"></th>
+                                        <th><input type="text" class="column-search form-control"></th>
+                                        <th></th>
+                                    </tr>
+                                    <tr class="text-center">
+                                        <th>S.No</th>
+                                        <th>Staff ID</th>
+                                        <th>Name</th>
+                                        <th>Phone</th>
+                                        <th>Email</th>
+                                        <th>Access</th>
+                                        <th>Date of Birth</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -61,6 +70,9 @@
 
 <script type="text/javascript">
     $(document).ready(function() {
+        $("#datefilter").daterangepicker({
+            locale: { format: 'DD/MM/YYYY' },
+        });
         var edit_staff = "<?= (!empty($edit_staff) ? true : false); ?>";
         if(edit_staff > 0) {
             $('#addStaffModal').modal('show');
@@ -80,6 +92,7 @@
                 "type": "POST",
                "data": function(d) {
                   d['<?= $this->security->get_csrf_token_name(); ?>'] = '<?= $this->security->get_csrf_hash(); ?>';
+                  d['datefilter'] = $('#datefilter').val();
                     $('#staff_list .column-search').each(function() {
                         var columnIndex = $(this).parent().index();
                         if (this.value) {
@@ -230,6 +243,10 @@
                     "exportOptions": { "columns": ':visible' }
                 },
             ]
+        });
+
+        $('#search').on('click', function() {
+            table.draw();
         });
 
         $('#staff_list thead').on('keyup change', '.column-search', function() {
