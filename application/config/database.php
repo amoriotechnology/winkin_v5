@@ -75,27 +75,29 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 	INSERT INTO `users` (`uid`, `staff_id`, `uname`, `uphone`, `uemail`, `upass`, `udob`, `uroles`, `ustatus`, `ucreated_date`) VALUES (NULL, 'ASP1000', 'Admin', '', 'admin@gmail.com', '329ca1d41ab9e76dba86ad657d54b924', '', '1', 'Active', CURRENT_TIMESTAMP);
 */
 
-$active_group = 'default';
+$active_group  = 'default';
 $query_builder = TRUE;
 
-$db['default'] = array(
-	'dsn'	=> '',
-	'hostname' => 'localhost',
-	'username' => 'root',
-	'password' => '',
-	'database' => 'pickelball_25feb25',
-	'dbdriver' => 'mysqli',
-	'dbprefix' => '',
-	'pconnect' => FALSE,
-	'db_debug' => (ENVIRONMENT !== 'production'),
-	'cache_on' => FALSE,
-	'cachedir' => '',
-	'char_set' => 'utf8',
-	'dbcollat' => 'utf8_general_ci',
-	'swap_pre' => '',
-	'encrypt' => FALSE,
-	'compress' => FALSE,
-	'stricton' => FALSE,
-	'failover' => array(),
-	'save_queries' => TRUE
-);
+
+$db['default'] = [
+    'dsn'          => '',
+    'hostname'     => 'localhost',
+    'username'     => 'root',
+    'password'     => '',
+    'database'     => 'amoriotech_pickleball',
+    'dbdriver'     => 'mysqli',
+    'dbprefix'     => '',
+    'pconnect'     => FALSE,
+    'db_debug'     => (ENVIRONMENT !== 'production'),
+    'cache_on'     => FALSE,
+    'cachedir'     => '',
+    'char_set'     => 'utf8',
+    'dbcollat'     => 'utf8_general_ci',
+    'swap_pre'     => '',
+    'encrypt'      => FALSE,
+    'compress'     => FALSE,
+    'stricton'     => FALSE,
+    'failover'     => [],
+    'save_queries' => TRUE,
+];
+
