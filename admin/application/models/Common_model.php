@@ -110,24 +110,31 @@ class Common_model extends CI_Model {
     }
 
 
-    public function getBookings($table1, $table2, $table3, $table1cond, $table2cond, $select, $orderby, $limit, $start, $search = '', $where='') {
+    public function getBookings($table1, $table2, $table3, $table1cond, $table2cond, $select, $orderby, $limit, $start, $search = '', $where='') 
+    {
+	    $this->db->select($select)->from($table1)->join($table2, $table1cond, 'left')->join($table3, $table2cond, 'left');
+	    
+	    if (!empty($search)) {
+	        $this->db->group_start();
+	        $columns = ['A.fld_appointid', 'C.fld_name', 'C.fld_phone', 'A.fld_astaffid', 'A.fld_aserv', 'A.fld_astatus', 'A.fld_abalance','A.fld_atime', 'A.fld_apaymode', 'A.fld_arate'];
+	        
+	        foreach ($columns as $column) {
+	            $this->db->or_like($column, $search);
+	        }
+	        $this->db->group_end();
+	    }
 
-       $this->db->select($select)->from($table1)->join($table2, $table1cond, 'left')->join($table3, $table2cond, 'left');
-                         
-        if (!empty($search)) {
-            $this->db->group_start();
-            $columns = ['fld_appointid', 'fld_name', 'fld_phone', 'fld_astaffid', 'fld_aserv', 'fld_astatus', 'fld_abalance', 'fld_apaymode', 'fld_arate'];
-            foreach ($columns as $column) {
-                $this->db->or_like($column, $search);
-            }
-            $this->db->group_end();
-        }
-
-        if(!empty($where)) { $this->db->where($where); }
-        $this->db->limit($limit, $start);
-        if (!empty($orderby)) { $this->db->order_by($orderby); }
-        return $this->db->get()->result_array();
-    }
+	    if (!empty($where)) {
+	        $this->db->where($where);
+	    }
+	    
+	    $this->db->limit($limit, $start);
+	    if (!empty($orderby)) {
+	        $this->db->order_by($orderby);
+	    }
+	    
+	    return $this->db->get()->result_array();
+	}
 
     public function getLogs($table1,$select, $orderby, $limit, $start, $search = '', $where='') {
 
@@ -141,6 +148,10 @@ class Common_model extends CI_Model {
             }
             $this->db->group_end();
         }
+
+        if (!empty($where)) {
+	        $this->db->where($where);
+	    }
 
         $this->db->limit($limit, $start);
         if (!empty($orderby)) { $this->db->order_by($orderby); }
@@ -338,7 +349,7 @@ class Common_model extends CI_Model {
 	    
 	    $this->db->where('fld_aserv', $court);
 	    $this->db->where('fld_adate', $date);
-	    $this->db->where("JSON_OVERLAPS(fld_atime, '$timeSlotsJson')"); 
+	    $this->db->where("JSON_CONTAINS(fld_atime, '$timeSlotsJson')"); 
 
 	    $query = $this->db->get('appointments');
 	    
