@@ -770,6 +770,7 @@ class Reports extends CI_Controller {
         $orderField     = $this->input->post('columns', TRUE)[$this->input->post('order', TRUE)[0]['column']]['data'];
         $orderDirection = $this->input->post("order", TRUE)[0]["dir"];
 
+
         $searchColumns = $this->input->post('search_columns', TRUE);
         $col_where = [];
         if (! empty($searchColumns)) {
@@ -801,6 +802,7 @@ class Reports extends CI_Controller {
         $totalItems = $this->Common_model->getCount('appointments', ["fld_atype" => 'Maintenance'], $searchdata, '`fld_aid`', $col_where);
 
         $items = $this->Common_model->PaginationData('appointments', "*", ["fld_atype" => 'Maintenance'], "`$orderField` $orderDirection", 10, $start, $searchdata, $col_where);
+
 
         $data = [];
         $i    = $start + 1;

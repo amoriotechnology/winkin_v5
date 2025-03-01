@@ -866,19 +866,36 @@ use Razorpay\Api\Api;
 
 		        // Fetch Payment Details from Razorpay
 		        $payment = $api->payment->fetch($payment_id);
-		        $payment_mode = $payment['method'];
 
 		        $response = [
-		          'status' => 'Payment Successfull',
-		          'payment_id'   => $payment_id,
-		          'order_id'   => $order_id,
-		          'signature'   => $signature,
-		          'pay_mode' => $payment_mode
+		        	'code' => 200,
+					'amount' => round(($payment['amount'] / 100), 2),
+					'status' => $payment['status'],
+					'payment_id'   => $payment_id,
+					'order_id'   => $order_id,
+					'signature'   => $signature,
+					'pay_mode' => $payment['method'],
+					'captured' => $payment['captured'],
+					'vpa' => $payment['vpa'],
+					'email' => $payment['email'],
+					'contact' => $payment['contact'],
+					'created_at' => $payment['created_at']
 		        ];
 		    } catch (Exception $e) {
-		      $response = [
-		        'status' => 'error',
-		      ];
+				$response = [
+		        	'code' => 401,
+					'amount' => round(($payment['amount'] / 100), 2),
+					'status' => $payment['status'],
+					'payment_id'   => $payment_id,
+					'order_id'   => $order_id,
+					'signature'   => $signature,
+					'pay_mode' => $payment['method'],
+					'captured' => $payment['captured'],
+					'vpa' => $payment['vpa'],
+					'email' => $payment['email'],
+					'contact' => $payment['contact'],
+					'created_at' => $payment['created_at']
+		        ];
 		    }
 
 		  echo json_encode($response);

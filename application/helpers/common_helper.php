@@ -61,8 +61,8 @@ use Razorpay\Api\Api;
 	if(!function_exists('checkCustLogin')) { /* login check if not login redirect to login */
 		function checkCustLogin() {
 			getInstance()->load->library('session');
-			$userdata = getInstance()->session->userdata('login_cust_info');
-			return $userdata = (empty($userdata)) ? [] : $userdata;
+			$custdata = getInstance()->session->userdata('login_cust_info');
+			return $custdata = (empty($custdata)) ? [] : $custdata;
 		}
 	}
 
@@ -782,16 +782,34 @@ use Razorpay\Api\Api;
 		        $payment_mode = $payment['method'];
 
 		        $response = [
-		          'status' => 'Payment Successfull',
-		          'payment_id'   => $payment_id,
-		          'order_id'   => $order_id,
-		          'signature'   => $signature,
-		          'pay_mode' => $payment_mode
+		        	'code' => 200,
+					'amount' => round(($payment['amount'] / 100), 2),
+					'status' => $payment['status'],
+					'payment_id'   => $payment_id,
+					'order_id'   => $order_id,
+					'signature'   => $signature,
+					'pay_mode' => $payment['method'],
+					'captured' => $payment['captured'],
+					'vpa' => $payment['vpa'],
+					'email' => $payment['email'],
+					'contact' => $payment['contact'],
+					'created_at' => $payment['created_at']
 		        ];
 		    } catch (Exception $e) {
-		      $response = [
-		        'status' => 'error',
-		      ];
+				$response = [
+					'code' => 401,
+					'amount' => round(($payment['amount'] / 100), 2),
+					'status' => $payment['status'],
+					'payment_id'   => $payment_id,
+					'order_id'   => $order_id,
+					'signature'   => $signature,
+					'pay_mode' => $payment['method'],
+					'captured' => $payment['captured'],
+					'vpa' => $payment['vpa'],
+					'email' => $payment['email'],
+					'contact' => $payment['contact'],
+					'created_at' => $payment['created_at']
+				];
 		    }
 
 		  echo json_encode($response);
