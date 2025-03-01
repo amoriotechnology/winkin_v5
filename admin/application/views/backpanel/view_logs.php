@@ -17,6 +17,15 @@
                 <div class="card custom-card">
                     <div class="card-body">
                         <div class="table-responsive">
+                            <div class="row d-flex justify-content-end">
+                                <div class="col-xl-5 col-md-12 col-sm-12">
+                                    <div class="input-group">
+                                        <input type="text" name="datefilter" id="datefilter" class="form-control datefilter" placeholder="Search date">
+                                        <button type="button" id="search" class="btn btn-primary">Search</button>&nbsp;
+                                        <a href="<?= base_url('revenue') ?>" id="search" class="btn btn-primary">Refresh</a>
+                                    </div>
+                                </div>
+                            </div>
                             <table id="logs_list" class="table table-bordered table-hover text-nowrap w-100">
                                 <thead class="table-dark">
                                     <tr>
@@ -44,7 +53,9 @@
 <script type="text/javascript">
 var logDataTable;
     $(document).ready(function() {
-
+        $("#datefilter").daterangepicker({
+            locale: { format: 'DD/MM/YYYY' },
+        });
         var csrfName = "<?= $this->security->get_csrf_token_name() ?>";
         var csrfHash = "<?= $this->security->get_csrf_hash() ?>";
 
@@ -62,6 +73,7 @@ var logDataTable;
                 "type": "POST",
                "data": function(d) {
                   d['<?= $this->security->get_csrf_token_name(); ?>'] = '<?= $this->security->get_csrf_hash(); ?>';
+                  d['datefilter'] = $('#datefilter').val();
                },
                "dataSrc": function(json) {
                    csrfHash = json['<?= $this->security->get_csrf_token_name(); ?>'];
@@ -225,8 +237,12 @@ var logDataTable;
             $(this).after(detailsHtml);
         }
     });
-
+        
+    $('#search').on('click', function() {
+        logDataTable.draw();
     });
+
+});
 </script>
 
 <script src="<?= base_url('../assets/js/cal_scroll.js'); ?>"></script>
