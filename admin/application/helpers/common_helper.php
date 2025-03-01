@@ -395,7 +395,6 @@ use Razorpay\Api\Api;
 	        	getInstance()->email->attach($attachment);
 	        }
 	        getInstance()->email->message($msg);
-	        
 	        if(getInstance()->email->send()) {
 	        	$result = 'Email sent successfully.';
 	        } else {
@@ -643,44 +642,54 @@ use Razorpay\Api\Api;
 								        text-align: center !important;
 								      }
 								    </style>
-								  </head>
-
-								  <body style="background-color: #F2F2F2;">
-
-								    <center>
-								      <div style="max-width: 680px; margin: 0 auto;" class="email-container">
-								       
-								          <div class="content bg-primary">
-								              <div class="div-left">
-								                <p class="text-white">Payment successfully <small><br>processed on '.showDate(CURDATE).'</small></p>
-								                <h1>₹'.round($amount, 2).'</h1>
+								  </head><body style="background-color: #F2F2F2;"><center><div style="max-width: 680px; margin: 0 auto;" class="email-container">';
+								          
+								            $template .=  '<div class="content bg-primary">
+								              <div class="div-left">';
+											    if ($data['payment_method'] !== '') {
+								                 $template .=  '<p class="text-white">Payment successfully <small><br>processed on '.showDate(CURDATE).'</small></p>';
+												}else{
+                                                 $template .=  '<p class="text-white">Payment Failed </p>';
+											
+												}
+												 $template .=  '<h1>₹'.round($amount, 2).'</h1>
 								              </div>
 
 								              <div class="div-right">
 								                <img src="data:image/png;base64,'.base64_encode(file_get_contents('../assets/images/company_imgs/verified.png')).'"  width="50%" height="50%">
 								              </div>
-								          </div>
-
-								          <p>
+								          </div>';
+                                        if ($data['payment_method'] !== '') {
+								           $template .=  '<p>
 								            Your payment against WINKIN for ₹'.round($amount, 2).' is successful.
-								          </p>
-
-								          <div class="container">
-								            <div class="div-left">
-								              Booking ID: <br>
-								              <span class="text-muted"> #'.$data['appoint_id'].'</span> <br><br>
-								              Amount: <br>
-								              <span class="text-muted">₹'.round($amount, 2).'</span> <br><br>
-								              Area: <br>
+								          </p>';
+										}else{
+											 $template .=  '<p>
+								            Your payment against WINKIN for ₹'.round($amount, 2).' is failed.
+								          </p>';
+										}
+							  
+								           $template .='<div class="container">
+								            <div class="div-left" style="width:300px;">
+								              Booking ID : <br>
+								              <span class="text-muted"> #'.$data['appoint_id'].'</span> <br><br>';
+											     if ($data['payment_method'] !== '') {
+								              $template .='Amount: <br>
+								              <span class="text-muted">₹'.round($amount, 2).'</span> <br><br>';
+											   }
+								               $template .='Area: <br>
 								              <span class="text-muted">'.$data['court'].'</span>
 								            </div>
 
 								            <div class="div-left">
 								              Booking Date: <br>
-								              <span class="text-muted">'.$data['date'].'</span> <br><br>
-								              Paymode: <br>
-								              <span class="text-muted">Online</span> <br><br>
-								              Timing: <br>
+								              <span class="text-muted">'.$data['date'].'</span> <br><br>';
+								              if ($data['payment_method'] !== '') {
+											  $template .='Paymode: <br>
+								              <span class="text-muted">'.$data['payment_method'].'</span> <br><br>';
+											  }
+
+								              $template .='Timing: <br>
 								              <span class="text-muted">'.$timing.'</span>
 								            </div>
 								          </div>
